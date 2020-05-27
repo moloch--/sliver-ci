@@ -40,6 +40,8 @@ async function compileImplant(c2URL: string): Promise<string> {
         implantConfig.setGoarch('amd64')
         implantConfig.setObfuscatesymbols(false)
         implantConfig.setFormat(2) // Executable
+        implantConfig.setMaxconnectionerrors(10)
+        implantConfig.setReconnectinterval(1)
         const implantFile = await client.generate(implantConfig)
         const filename = process.platform === 'win32' ? `${implantFile.getName()}.exe` : implantFile.getName()
         fs.writeFileSync(path.join(common.REPO_ROOT, filename), implantFile.getData(), {
