@@ -7,45 +7,45 @@ import * as common from './common';
 import { SliverClient, ParseConfigFile } from 'sliver-script'
 import { ImplantConfig, ImplantC2 } from 'sliver-script/lib/pb/clientpb/client_pb';
 
+let client: SliverClient;
 
-async function sleep(ms): Promise<void> {
+async function sleep(ms: number): Promise<void> {
     return new Promise(resolve => {
         setTimeout(resolve, ms)
     })
 }
 
-async function getClient(): Promise<SliverClient> {
+async function initClient(): Promise<void> {
     try {
         const config = await ParseConfigFile(common.CLIENT_CONFIG_PATH)
-        const client = new SliverClient(config)
+        client = new SliverClient(config)
         console.log(`Connecting to ${config.lhost}:${config.lport} ...`)
         await client.connect()
         console.log('Connection successful!')
-        return client
     } catch (err) {
         console.error(err) // Because Node is _fucking_ dumb
         process.exit(1)    // this can only be caught here.
     }
 }
 
-async function compileImplant(): Promise<string> {
+async function compileImplant(c2URL: string): Promise<string> {
     try {
-        const client = await getClient()
-
+        await initClient()
         const c2 = new ImplantC2()
-        c2.setUrl('mtls://127.0.0.1:8888')
-
+        c2.setUrl(c2URL)
         const implantConfig = new ImplantConfig()
         implantConfig.setC2List([c2])
         implantConfig.setDebug(true)
-        implantConfig.setGoos(process.platform)
+        implantConfig.setGoos(process.platform === 'win32' ? 'windows' : process.platform)
         implantConfig.setGoarch('amd64')
         implantConfig.setObfuscatesymbols(false)
         implantConfig.setFormat(2) // Executable
         const implantFile = await client.generate(implantConfig)
-        console.log(`Got: ${implantFile.getName()}`)
-        return ''
-
+        const filename = process.platform === 'win32' ? `${implantFile.getName()}.exe` : implantFile.getName()
+        fs.writeFileSync(path.join(common.REPO_ROOT, filename), implantFile.getData(), {
+            mode: 0o777,
+        })
+        return path.join(common.REPO_ROOT, filename)
     } catch (err) {
         console.error(err) // Because Node is _fucking_ dumb
         process.exit(1)    // this can only be caught here.
@@ -53,29 +53,60 @@ async function compileImplant(): Promise<string> {
 }
 
 export async function setup() {
+    try {
 
-    const server = common.getSliverServerPath()
-    await common.run(server, ['unpack', '--force'])
-    await common.run(server, [
-        'operator',
-        '--name', 'ci',
-        '--lhost', '127.0.0.1',
-        '--lport', '31337',
-        '--save', common.CLIENT_CONFIG_PATH,
-    ])
-    const config = common.getSliverServerConfigPath()
-    fs.copyFileSync(config, path.join(common.APP_ROOT, 'configs', 'server.json'))
+        const server = common.getSliverServerPath()
+        await common.run(server, ['unpack', '--force'])
+        await common.run(server, [
+            'operator',
+            '--name', 'ci',
+            '--lhost', '127.0.0.1',
+            '--lport', '31337',
+            '--save', common.CLIENT_CONFIG_PATH,
+        ])
+        const config = common.getSliverServerConfigPath()
+        fs.copyFileSync(config, path.join(common.APP_ROOT, 'configs', 'server.json'))
+    
+        let serverChild = cp.spawn(server)
+        fs.writeFileSync(path.join(common.REPO_ROOT, 'server.pid'), serverChild.pid.toString())
+        await sleep(2000)
+    
+        // Compile implants
+        const mtlsImplant = await compileImplant('mtls://127.0.0.1:8888')
+        const httpsImplant = await compileImplant('https://127.0.0.1')
+    
+        // Start listeners
+        const mtlsListener = await client.startMTLSListener('127.0.0.1', 8888)
+        console.log(`MTLS Listener - Job #${mtlsListener.getJobid()}`)
+        const httpsListener = await client.startHTTPSListener('', '127.0.0.1', 443)
+        console.log(`HTTPS Listener - Job #${httpsListener.getJobid()}`)
 
-    let child = cp.spawn(server)
-    fs.writeFileSync(path.join(common.REPO_ROOT, 'pid'), child.pid.toString())
-
-    await sleep(2000) // Wait for server to init
-
-
-
-    await compileImplant()
-
-
+        // Execute implants
+        let mtlsImplantChild = cp.spawn(mtlsImplant)
+        mtlsImplantChild.stdout.on('data', (data) => {
+            console.log(data.toString());
+        })
+        mtlsImplantChild.on('close', (code) => {
+            console.log(`mtls implant child process exited with code ${code}`);
+        })
+        fs.writeFileSync(path.join(common.REPO_ROOT, 'mtls-implant.pid'),  mtlsImplantChild.pid.toString())
+        
+        let httpsImplantChild = cp.spawn(httpsImplant)
+        httpsImplantChild.stdout.on('data', (data) => {
+            console.log(data.toString());
+        })
+        httpsImplantChild.on('close', (code) => {
+            console.log(`https implant child process exited with code ${code}`);
+        })
+        fs.writeFileSync(path.join(common.REPO_ROOT, 'https-implant.pid'), httpsImplantChild.pid.toString())
+        
+        await sleep(1000)
+        const sessions = await client.sessions()
+        console.log(`Setup created ${sessions.length} session(s)`)
+    } catch (err) {
+        console.error(err)
+        process.exit(1)
+    }
 }
 
 export async function teardown() {
