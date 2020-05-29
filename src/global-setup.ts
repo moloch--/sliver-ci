@@ -70,6 +70,16 @@ export async function setup() {
         fs.copyFileSync(config, path.join(common.APP_ROOT, 'configs', 'server.json'))
     
         let serverChild = cp.spawn(server)
+        serverChild.stdout.on('data', (data) => {
+            console.log(`[server stdout] ${data.toString()}`)
+        })
+        serverChild.stderr.on('data', (data) => {
+            console.log(`\x1b[31m${data.toString()}\x1b[0m`)
+        })
+        serverChild.on('close', (code) => {
+            console.log(`\nServer child process exited with code ${code}`)
+            process.exit(1)
+        })
         fs.writeFileSync(path.join(common.REPO_ROOT, 'server.pid'), serverChild.pid.toString())
         await sleep(2000)
     
@@ -86,19 +96,21 @@ export async function setup() {
         // Execute implants
         let mtlsImplantChild = cp.spawn(mtlsImplant)
         mtlsImplantChild.stdout.on('data', (data) => {
-            console.log(data.toString());
+            console.log(`[mtls implant] ${data.toString()}`)
         })
         mtlsImplantChild.on('close', (code) => {
-            console.log(`mtls implant child process exited with code ${code}`);
+            console.log(`mtls implant child process exited with code ${code}`)
+            process.exit(1)
         })
         fs.writeFileSync(path.join(common.REPO_ROOT, 'mtls-implant.pid'),  mtlsImplantChild.pid.toString())
         
         let httpsImplantChild = cp.spawn(httpsImplant)
         httpsImplantChild.stdout.on('data', (data) => {
-            console.log(data.toString());
+            console.log(`[https implant] ${data.toString()}`)
         })
         httpsImplantChild.on('close', (code) => {
-            console.log(`https implant child process exited with code ${code}`);
+            console.log(`https implant child process exited with code ${code}`)
+            process.exit(1)
         })
         fs.writeFileSync(path.join(common.REPO_ROOT, 'https-implant.pid'), httpsImplantChild.pid.toString())
         
