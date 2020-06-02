@@ -18,11 +18,33 @@ test('List Sessions', async () => {
     expect(sessions.length).toEqual(2)
 }, TIMEOUT)
 
-test('Session Interact / Ping', async () => {
+test('Session Interact / ping', async () => {
     const sessions = await client.sessions()
     sessions.forEach(async (session) => {
         const interact = await client.interact(session)
-        const pong = await interact.ping()
+        const nonce = Math.ceil(Math.random() * 10000000)
+        const pong = await interact.ping(nonce)
+        expect(pong.getNonce()).toEqual(nonce)
+    })
+}, TIMEOUT)
+
+test('Session Interact / ls', async () => {
+    const sessions = await client.sessions()
+    sessions.forEach(async (session) => {
+        const interact = await client.interact(session)
+        const ls = await interact.ls('./data')
+        expect(ls.getExists()).toBeTruthy()
+
+        const data = ['a.txt', 'b.txt', 'c']
+
+        ls.getFilesList().forEach(file => {
+            expect(data.some(a => a === file.getName())).toBeTruthy()
+            if (file.getName() === 'c') {
+                expect(file.getIsdir()).toBeTruthy()
+            } else {
+                expect(file.getIsdir()).toBeFalsy()
+            }
+        })
     })
 }, TIMEOUT)
 
