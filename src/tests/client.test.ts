@@ -1,6 +1,7 @@
 import { SliverClient, ParseConfigFile } from 'sliver-script'
 import * as common from '../common'
 
+const PINGS = 25
 const TIMEOUT = 1000 * 30
 let client: SliverClient|null = null
 
@@ -18,17 +19,19 @@ test('List Sessions', async () => {
     expect(sessions.length).toEqual(2)
 }, TIMEOUT)
 
-test('Session Interact / ping', async () => {
+test('Session Interact: ping', async () => {
     const sessions = await client.sessions()
     sessions.forEach(async (session) => {
-        const interact = await client.interact(session)
-        const nonce = Math.ceil(Math.random() * 10000000)
-        const pong = await interact.ping(nonce)
-        expect(pong.getNonce()).toEqual(nonce)
+        for (let index = 0; index < PINGS; ++index) {
+            const interact = await client.interact(session)
+            const nonce = Math.ceil(Math.random() * 10000000)
+            const pong = await interact.ping(nonce)
+            expect(pong.getNonce()).toEqual(nonce)
+        }
     })
 }, TIMEOUT)
 
-test('Session Interact / ls', async () => {
+test('Session Interact: ls', async () => {
     const sessions = await client.sessions()
     sessions.forEach(async (session) => {
         const interact = await client.interact(session)
@@ -45,6 +48,51 @@ test('Session Interact / ls', async () => {
                 expect(file.getIsdir()).toBeFalsy()
             }
         })
+    })
+}, TIMEOUT)
+
+test('Session Interact: pwd / cd', async () => {
+    const sessions = await client.sessions()
+    sessions.forEach(async (session) => {
+        const interact = await client.interact(session)
+        const cwd = await interact.pwd()
+        const parent = await interact.cd('..')
+        expect(cwd.getPath().startsWith(parent.getPath()))
+        const orig = await interact.cd(cwd.getPath())
+        expect(cwd.getPath() === orig.getPath())
+        const test = await interact.cd('test')
+        expect(test.getPath().endsWith('test'))
+        const orig2 = await interact.cd('..')
+        expect(cwd.getPath() === orig2.getPath())
+    })
+}, TIMEOUT)
+
+test('Session Interact: mkdir', async () => {
+    const sessions = await client.sessions()
+    sessions.forEach(async (session) => {
+        const interact = await client.interact(session)
+        const cwd = await interact.pwd()
+
+        await interact.cd('test')
+        await interact.mkdir('z')
+        const z = await interact.cd('z')
+        expect(z.getPath().endsWith('z'))
+
+        await interact.cd(cwd.getPath())
+    })
+}, TIMEOUT)
+
+test('Session Interact: upload', async () => {
+    const sessions = await client.sessions()
+    sessions.forEach(async (session) => {
+        const interact = await client.interact(session)
+    })
+}, TIMEOUT)
+
+test('Session Interact: download / cat', async () => {
+    const sessions = await client.sessions()
+    sessions.forEach(async (session) => {
+        const interact = await client.interact(session)
     })
 }, TIMEOUT)
 
