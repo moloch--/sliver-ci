@@ -3,7 +3,6 @@ import * as os from 'os';
 import * as path from 'path';
 import * as cp from 'child_process';
 import * as crypto from 'crypto';
-import { promisify } from 'util';
 
 
 export const REPO_ROOT = path.resolve(path.join(__dirname, '..'))
@@ -17,8 +16,21 @@ export const APP_ROOT = process.env['SLIVER_ROOT_DIR'] || path.join(os.homedir()
 export const CLIENT_CONFIG_PATH = path.join(REPO_ROOT, 'ci-client.cfg')
 
 
-export const readFileAsync = promisify(fs.readFile);
-export const writeFileAsync = promisify(fs.writeFile);
+export async function readFileAsync(path: string): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+        fs.readFile(path, (err, data) => {
+            err ? reject(err) : resolve(data)
+        })
+    })
+}
+
+export async function writeFileAsync(path: string, data: Buffer): Promise<void> {
+    return new Promise((resolve, reject) => {
+        fs.writeFile(path, data, (err) => {
+            err ? reject(err) : resolve()
+        })
+    })
+}
 
 
 // getSliverServerPath - Get the path to the sliver server binary

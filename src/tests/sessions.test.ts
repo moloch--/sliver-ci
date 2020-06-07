@@ -15,10 +15,6 @@ beforeAll(async () => {
     await client.connect()
 }, TIMEOUT)
 
-afterAll(async () => {
-    // await client.disconnect()
-})
-
 
 // --- Sessions ---
 
@@ -95,19 +91,19 @@ test('Session Interact: upload', async () => {
     const mediumFile = await common.generateRandomFile(1024*1024*2)
     const largeFile = await common.generateRandomFile(1024*1024*100)
 
-    console.log(`smallFile = ${smallFile}`)
-    console.log(`mediumFile = ${mediumFile}`)
-    console.log(`largeFile = ${largeFile}`)
+    // console.log(`smallFile = ${smallFile}`)
+    // console.log(`mediumFile = ${mediumFile}`)
+    // console.log(`largeFile = ${largeFile}`)
 
     const sessions = await client.sessions()
     for (let index = 0; index < sessions.length; ++index) {
         const interact = await client.interact(sessions[index])
         const smallData = await common.readFileAsync(smallFile)
         const smallDst = `${smallFile}.up`
-        console.log(`Upload small file: ${smallFile} -> ${smallDst}`)
-        console.log(smallData)
+        //console.log(`Upload small file: ${smallFile} -> ${smallDst}`)
+        //console.log(typeof smallData)
         const upload = await interact.upload(smallDst, smallData)
-        let same = common.isSameFile(smallFile, smallDst)
+        let same = await common.isSameFile(smallFile, smallDst)
         expect(same).toBeTruthy()
         fs.unlinkSync(smallDst)
     }

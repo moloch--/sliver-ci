@@ -12,10 +12,6 @@ beforeAll(async () => {
     await client.connect()
 }, TIMEOUT)
 
-afterAll(async () => {
-    // await client.disconnect()
-})
-
 
 // --- Jobs ---
 
