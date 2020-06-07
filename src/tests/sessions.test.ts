@@ -1,3 +1,6 @@
+import * as fs from 'fs'
+import * as path from 'path'
+
 import { SliverClient, ParseConfigFile } from 'sliver-script'
 import * as common from '../common'
 
@@ -11,6 +14,11 @@ beforeAll(async () => {
     client = new SliverClient(config)
     await client.connect()
 }, TIMEOUT)
+
+afterAll(async () => {
+    // await client.disconnect()
+})
+
 
 // --- Sessions ---
 
@@ -83,55 +91,51 @@ test('Session Interact: mkdir', async () => {
 }, TIMEOUT)
 
 test('Session Interact: upload', async () => {
+    const smallFile = await common.generateRandomFile(1024)
+    const mediumFile = await common.generateRandomFile(1024*1024*2)
+    const largeFile = await common.generateRandomFile(1024*1024*100)
+
+    console.log(`smallFile = ${smallFile}`)
+    console.log(`mediumFile = ${mediumFile}`)
+    console.log(`largeFile = ${largeFile}`)
+
     const sessions = await client.sessions()
-    sessions.forEach(async (session) => {
-        const interact = await client.interact(session)
-    })
+    for (let index = 0; index < sessions.length; ++index) {
+        const interact = await client.interact(sessions[index])
+        const smallData = await common.readFileAsync(smallFile)
+        const smallDst = `${smallFile}.up`
+        console.log(`Upload small file: ${smallFile} -> ${smallDst}`)
+        console.log(smallData)
+        const upload = await interact.upload(smallDst, smallData)
+        let same = common.isSameFile(smallFile, smallDst)
+        expect(same).toBeTruthy()
+        fs.unlinkSync(smallDst)
+    }
+
+    fs.unlinkSync(smallFile)
+    fs.unlinkSync(mediumFile)
+    fs.unlinkSync(largeFile)
 }, TIMEOUT)
 
-test('Session Interact: download / cat', async () => {
-    const sessions = await client.sessions()
-    sessions.forEach(async (session) => {
-        const interact = await client.interact(session)
-    })
-}, TIMEOUT)
 
-// --- Jobs ---
+// test('Session Interact: download / cat', async () => {
+//     const smallFile = await common.generateRandomFile(1024)
+//     const mediumFile = await common.generateRandomFile(1024*1024*2)
+//     const largeFile = await common.generateRandomFile(1024*1024*100)
 
-test('List Jobs', async () => {
-    const jobs = await client.jobs()
-    expect(jobs.length).toEqual(2)
-}, TIMEOUT)
+//     console.log(`smallFile = ${smallFile}`)
+//     console.log(`mediumFile = ${mediumFile}`)
+//     console.log(`largeFile = ${largeFile}`)
 
-test('Start/Stop HTTP Listener', async () => {
-    const httpJob = await client.startHTTPListener('', '127.0.0.1', 8080)
-    let jobs = await client.jobs()
-    expect(jobs.length).toEqual(3)
-    
-    await client.killJob(httpJob.getJobid())
 
-    jobs = await client.jobs()
-    expect(jobs.length).toEqual(2)
-}, TIMEOUT)
+//     const sessions = await client.sessions()
+//     sessions.forEach(async (session) => {
+//         const interact = await client.interact(session)
 
-test('Start/Stop HTTPS Listener', async () => {
-    const httpsJob = await client.startHTTPSListener('', '127.0.0.1', 8443)
-    let jobs = await client.jobs()
-    expect(jobs.length).toEqual(3)
+//     })
 
-    await client.killJob(httpsJob.getJobid())
+//     fs.unlinkSync(smallFile)
+//     fs.unlinkSync(mediumFile)
+//     fs.unlinkSync(largeFile)
+// }, TIMEOUT)
 
-    jobs = await client.jobs()
-    expect(jobs.length).toEqual(2)
-}, TIMEOUT)
-
-test('Start/Stop DNS Listener', async () => {
-    const dnsJob = await client.startDNSListener(['example.com.'], false, '127.0.0.1', 8443)
-    let jobs = await client.jobs()
-    expect(jobs.length).toEqual(3)
-    
-    await client.killJob(dnsJob.getJobid())
-
-    jobs = await client.jobs()
-    expect(jobs.length).toEqual(2)
-}, TIMEOUT)
